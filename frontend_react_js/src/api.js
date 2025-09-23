@@ -58,18 +58,42 @@ export async function deleteDocument(docId) {
 
 // PUBLIC_INTERFACE
 export async function uploadDocuments(files, options = {}) {
-  /** Upload one or more files for ingestion. */
-  const form = new FormData();
+  /** 
+   * Upload one or more files for ingestion.
+   * Backend expects: multipart/form-data with fields:
+   * - title (string)
+   * - file (single file)
+   * We send files one-by-one and aggregate results.
+   */
+  const results = [];
+  const errors = [];
+
   for (const f of files) {
-    form.append("files", f);
+    const form = new FormData();
+    const defaultTitle = (f?.name || "Untitled").replace(/\.[^/.]+$/, "") || (f?.name || "Untitled");
+    form.append("title", options.title || defaultTitle);
+    form.append("file", f);
+
+    try {
+      const res = await fetch(`${API_BASE}/documents/upload/`, {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      });
+      const data = await handleJson(res);
+      results.push(data);
+    } catch (e) {
+      errors.push({ file: f?.name || "unknown", error: e?.message || String(e) });
+    }
   }
-  if (options.collection) form.append("collection", options.collection);
-  const res = await fetch(`${API_BASE}/documents/upload/`, {
-    method: "POST",
-    body: form,
-    credentials: "include",
-  });
-  return handleJson(res);
+
+  if (errors.length && !results.length) {
+    // If all failed, throw a combined error
+    const detail = errors.map(er => `${er.file}: ${er.error}`).join("; ");
+    throw new Error(detail);
+  }
+  // Return combined response to allow caller to refresh list
+  return { results, errors };
 }
 
 // PUBLIC_INTERFACE

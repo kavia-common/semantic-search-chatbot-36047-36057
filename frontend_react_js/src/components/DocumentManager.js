@@ -31,7 +31,11 @@ export default function DocumentManager() {
     if (files.length === 0) return;
     setBusy(true);
     try {
-      await uploadDocuments(files);
+      const resp = await uploadDocuments(files);
+      if (resp?.errors?.length) {
+        const msg = resp.errors.map(e => `${e.file}: ${e.error}`).join("\n");
+        alert(`Some files failed to upload:\n${msg}`);
+      }
       await refresh();
     } catch (err) {
       alert(`Upload failed: ${err.message}`);
@@ -90,7 +94,7 @@ export default function DocumentManager() {
               <div key={d.id || d.pk || d.path} style={styles.docItem}>
                 <div style={styles.docMeta}>
                   <div style={styles.docTitle}>{d.name || d.title || d.filename || "Document"}</div>
-                  <div style={styles.docSub}>{d.size ? `${Math.round(d.size / 1024)} KB` : d.id}</div>
+                  <div style={styles.docSub}>{d.size ? `${Math.round(d.size / 1024)} KB` : (d.mime_type || d.created_at || d.id)}</div>
                 </div>
                 <button style={styles.deleteBtn} onClick={() => onDelete(d.id || d.pk)}>
                   Delete
